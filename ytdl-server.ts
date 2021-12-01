@@ -1,6 +1,7 @@
 import { spawn, ChildProcessWithoutNullStreams } from "child_process";
 import ShortUniqueId from 'short-unique-id';
 import fs from 'fs';
+import { addVideoEntryToDB, getVideoCodesFromDB, updateVideoEntryInDB, addVideoEntriesToDB, VideoDBRow, markItemsAsBeingDownloadedInDB } from './db';
 
 // test errors with this url: https://www.youtube.com/watch\?v\=O-MViv-D0ow
 // ERROR: Did not get any data blocks
@@ -10,7 +11,8 @@ import fs from 'fs';
 // ERROR: unable to download video data: HTTP Error 403: Forbidden
 
 const uid = new ShortUniqueId({ length: 12 })
-const desiredSimultaneousDownloads = 3;
+const desiredSimultaneousDownloads = 5;
+let getCodesIsRunning = false;
 
 interface Process {
   id: string;
@@ -21,21 +23,40 @@ interface Process {
   errorMessages: string[];
   recentMessage: string;
   videoCode: string;
+  dbID: string;
 }
 
 let processes: Process[] = []
 
-const getCodes = (desiredCount: number) => {
-  // do some mongodb query
-  // return desiredCount codes
+const getCodes = async (desiredCount: number) => {
+  getCodesIsRunning = true;
 
   let codes: string[] = []
+
+  try {
+    const videos = await getVideoCodesFromDB(desiredCount) as VideoDBRow[]
+
+    await markItemsAsBeingDownloadedInDB(videos);
+
+    videos.forEach((video, index) => {
+      if (video._id && video.videoCode) {
+        setTimeout(() => {
+          startDownload(video.videoCode, video._id || "noid")
+        }, 1000 * index)
+      }
+    })
+  } catch (error) {
+    console.error(error);
+  }
+
+  getCodesIsRunning = false;
 
   return codes;
 }
 
 const startDownload = (
   code: string,
+  dbID: string,
   shouldRetryAfterA403: boolean = true,
   shouldRetryAfterACodeBlocksError: boolean = true,
   extraParams: string[] = [],
@@ -56,14 +77,11 @@ const startDownload = (
       errorMessages: currentErrorMessages,
       recentMessage: 'spawned',
       videoCode: code,
+      dbID
     })
-    // console.log('created process id ' + processUID)
 
     process.stdout.on('data', (data) => {
       let myProcess = processes.filter((process) => process.id === processUID)
-
-      // console.log("process:")
-      // console.log(JSON.stringify(myProcess, null, 2))
 
       if (myProcess.length === 1) {
         myProcess[0].messages.push(data.toString())
@@ -90,6 +108,7 @@ const startDownload = (
             setTimeout(() => {
               startDownload(
                 myProcess[0].videoCode,
+                myProcess[0].dbID,
                 !myProcess[0].hasRetriedAfterA403,
                 !myProcess[0].hasRetriedAfterACodeBlocksError,
                 [],
@@ -99,7 +118,17 @@ const startDownload = (
             }, 5000);
           } else {
             // tried twice and got 403 both times. 
-            // TODO: mark this download as failed in the database.
+            // mark this download as failed in the database.
+            try {
+              updateVideoEntryInDB({
+                dateCompleted: new Date(),
+                errorMessageLogs: JSON.stringify(myProcess[0].errorMessages, null, 2),
+                messageLogs: JSON.stringify(myProcess[0].messages, null, 2),
+                failedDownload: true,
+              }, myProcess[0].dbID)
+            } catch (error) {
+              console.error(error);
+            }
           }
 
         } else if (data.toString().includes('Did not get any data blocks')) {
@@ -110,6 +139,7 @@ const startDownload = (
             setTimeout(() => {
               startDownload(
                 myProcess[0].videoCode,
+                myProcess[0].dbID,
                 !myProcess[0].hasRetriedAfterA403,
                 !myProcess[0].hasRetriedAfterACodeBlocksError,
                 ["-f", "bestvideo[ext=mp4]"],
@@ -119,7 +149,17 @@ const startDownload = (
             }, 5000);
           } else {
 
-            // TODO: mark this download as failed in the database.
+            // mark this download as failed in the database.
+            try {
+              updateVideoEntryInDB({
+                dateCompleted: new Date(),
+                errorMessageLogs: JSON.stringify(myProcess[0].errorMessages, null, 2),
+                messageLogs: JSON.stringify(myProcess[0].messages, null, 2),
+                failedDownload: true,
+              }, myProcess[0].dbID)
+            } catch (error) {
+              console.error(error);
+            }
           }
         }
       }
@@ -139,9 +179,23 @@ const startDownload = (
       var numOfProcessesAfter = processes.length;
 
       if (numOfProcessesBefore - numOfProcessesAfter === 1) {
-        // console.log("completed a processes and successfully removed it from processes array.");
 
-        // TODO: mark it successfully downloaded in the DB.
+        // mark it successfully downloaded in the DB.
+        try {
+          updateVideoEntryInDB({
+            dateCompleted: new Date(),
+            errorMessageLogs: JSON.stringify(myProcess[0].errorMessages, null, 2),
+            messageLogs: JSON.stringify(myProcess[0].messages, null, 2),
+            completedDownload: true,
+          }, myProcess[0].dbID)
+
+          // queue up the next video to download:
+          setTimeout(() => {
+            refresh();
+          }, 2000)
+        } catch (error) {
+          console.error(error);
+        }
       }
       else {
         console.error("from exit; got multiple processes with the same id")
@@ -159,7 +213,7 @@ const startDownload = (
 
 const saveLogs = (proc: Process) => {
   fs.writeFile(
-    `logs-${proc.videoCode}-${proc.id}.txt`,
+    `logs/${proc.videoCode}-${proc.id}.txt`,
     `${JSON.stringify(proc.messages, null, 2)}\n\nerrors: ${JSON.stringify(proc.errorMessages, null, 2)}`,
     err => {
       if (err) return console.log(err);
@@ -168,8 +222,6 @@ const saveLogs = (proc: Process) => {
 }
 
 const printStatus = () => {
-  // console.log(JSON.stringify(processes, null, 2))
-
   console.clear()
 
   console.log('---- ytdl OMEGA ----')
@@ -189,19 +241,16 @@ const printStatus = () => {
   }
 }
 
+// this get the videos codes and starts the downloads. It get triggered when a download finishes and when the script first starts.
 const refresh = () => {
-  if (processes.length < desiredSimultaneousDownloads) {
+  if (processes.length < desiredSimultaneousDownloads && !getCodesIsRunning) {
     getCodes(desiredSimultaneousDownloads - processes.length);
-
-    // query db for more youtube videos and start the processes
   }
 }
 
+// continually refresh terminal with status of downloads.
 setInterval(() => {
-  refresh()
   printStatus()
-}, 500)
+}, 1000)
 
-startDownload('QpQY8uXW3JY')
-startDownload('3O1oEFziRmo')
-startDownload('O-MViv-D0ow')
+refresh(); // this is entry point for the program. 
