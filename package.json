@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "child_process": "^1.0.2",
+    "mongodb": "^4.2.1",
+    "short-unique-id": "^4.4.4"
+  },
+  "devDependencies": {
+    "@types/node": "^16.11.11"
+  }
+}
