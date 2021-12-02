@@ -25,9 +25,9 @@ const addCodesToDB = (codes: string[], priority: number) => {
       })
     }
   
-    // addVideoEntriesToDB(entries);
+    addVideoEntriesToDB(entries);
 
-    console.log('would have added these entries')
+    console.log('adding these entries')
     console.log(JSON.stringify(entries, null, 2))
   
   } catch (error) {
@@ -59,9 +59,6 @@ const getCodesFromPlaylist = (playlistCode: string, priority: number) => {
   });
 }
 
-getCodesFromPlaylist('PLFgtyOooDx3_GqPPL2DpD6ntcgmIn0naB', 100);
-getCodesFromPlaylist('PL7261909647928DAC', 40);
-
-setInterval(() => {
-  console.log(JSON.stringify(codes, null, 2))
-}, 300)
+export const queueUpPlaylistOrVideoForDownload = (code: string, priority: number) => {
+  getCodesFromPlaylist(code, priority);
+}

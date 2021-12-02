@@ -19,7 +19,7 @@ import { addVideoEntryToDB,
 
 const uid = new ShortUniqueId({ length: 12 })
 const desiredSimultaneousDownloads = 40;
-let shouldRetryFailedVideos = true; // change this flag to a command line input?
+let shouldRetryFailedVideos = false; // change this flag to a command line input? When it's in this state, it queries the db for failed downloads instead of new videos
 let getCodesIsRunning = false;
 let processes: Process[] = []
 
@@ -45,20 +45,31 @@ const getCodes = async (desiredCount: number) => {
 
     const videos = await getVideos(desiredCount) as VideoDBRow[]
 
+    if (videos.length === 0) {
+      getCodesIsRunning = false;
+      return;
+    }
+
     await markItemsAsBeingDownloadedInDB(videos);
 
     videos.forEach((video, index) => {
       if (video._id && video.videoCode) {
         setTimeout(() => {
           startDownload(video.videoCode, video._id || "noid")
+
+          // if this is the last video queued to download, wait 5 seconds and then tell the rest of the program that "getCodes" is no longer running.
+          // when getCodes is running, new queries to the database for more videos to download would cause duplicates with those currently being started.
+          if (index + 1 === videos.length) {
+            setTimeout(() => {
+              getCodesIsRunning = false;
+            }, 5000)
+          }
         }, 1000 * index)
       }
     })
   } catch (error) {
     console.error(error);
   }
-
-  getCodesIsRunning = false;
 
   return codes;
 }
@@ -233,7 +244,7 @@ const saveLogs = (proc: Process) => {
 const printStatus = () => {
   console.clear()
 
-  console.log('              ---- ytdl OMEGA ----')
+  console.log('OMEGA')
 
   if (processes.length === 0) {
     console.log("No processes -- currently idle");
@@ -246,7 +257,7 @@ const printStatus = () => {
     const info403 = proc.hasRetriedAfterA403 ? ' (second attempt after 403)' : ''
     const infoCodeBlocks = proc.hasRetriedAfterACodeBlocksError ? ' (second attempt after code blocks error)' : ''
 
-    console.log(`(${proc.videoCode}) - ${proc.recentMessage}${info403}${infoCodeBlocks}`);
+    console.log(`(${proc.videoCode}) - ${proc.recentMessage.toString().trim()}${info403}${infoCodeBlocks}`);
   }
 }
 
