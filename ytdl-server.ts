@@ -1,7 +1,14 @@
 import { spawn, ChildProcessWithoutNullStreams } from "child_process";
 import ShortUniqueId from 'short-unique-id';
 import fs from 'fs';
-import { addVideoEntryToDB, getVideoCodesFromDB, updateVideoEntryInDB, addVideoEntriesToDB, VideoDBRow, markItemsAsBeingDownloadedInDB } from './db';
+import { addVideoEntryToDB,
+  getVideoCodesFromDB,
+  updateVideoEntryInDB,
+  addVideoEntriesToDB,
+  VideoDBRow,
+  markItemsAsBeingDownloadedInDB,
+  getVideoIncompleteCodesFromDB,
+} from './db';
 
 // test errors with this url: https://www.youtube.com/watch\?v\=O-MViv-D0ow
 // ERROR: Did not get any data blocks
@@ -11,8 +18,10 @@ import { addVideoEntryToDB, getVideoCodesFromDB, updateVideoEntryInDB, addVideoE
 // ERROR: unable to download video data: HTTP Error 403: Forbidden
 
 const uid = new ShortUniqueId({ length: 12 })
-const desiredSimultaneousDownloads = 5;
+const desiredSimultaneousDownloads = 40;
+let shouldRetryFailedVideos = true; // change this flag to a command line input?
 let getCodesIsRunning = false;
+let processes: Process[] = []
 
 interface Process {
   id: string;
@@ -26,15 +35,15 @@ interface Process {
   dbID: string;
 }
 
-let processes: Process[] = []
-
 const getCodes = async (desiredCount: number) => {
   getCodesIsRunning = true;
 
   let codes: string[] = []
 
   try {
-    const videos = await getVideoCodesFromDB(desiredCount) as VideoDBRow[]
+    var getVideos = shouldRetryFailedVideos ? getVideoIncompleteCodesFromDB : getVideoCodesFromDB
+
+    const videos = await getVideos(desiredCount) as VideoDBRow[]
 
     await markItemsAsBeingDownloadedInDB(videos);
 
@@ -224,7 +233,7 @@ const saveLogs = (proc: Process) => {
 const printStatus = () => {
   console.clear()
 
-  console.log('---- ytdl OMEGA ----')
+  console.log('              ---- ytdl OMEGA ----')
 
   if (processes.length === 0) {
     console.log("No processes -- currently idle");
@@ -237,7 +246,7 @@ const printStatus = () => {
     const info403 = proc.hasRetriedAfterA403 ? ' (second attempt after 403)' : ''
     const infoCodeBlocks = proc.hasRetriedAfterACodeBlocksError ? ' (second attempt after code blocks error)' : ''
 
-    process.stdout.write(`${proc.recentMessage}${info403}${infoCodeBlocks}\n`);
+    console.log(`(${proc.videoCode}) - ${proc.recentMessage}${info403}${infoCodeBlocks}`);
   }
 }
 
@@ -252,5 +261,14 @@ const refresh = () => {
 setInterval(() => {
   printStatus()
 }, 1000)
+
+// normally, refetching videos is triggered by a video finishing a download, 
+// but if there are no more videos to download, it should keep checking the database every 30 seconds
+// in case more videos get added later.
+setInterval(() => {
+  if (processes.length === 0 && !getCodesIsRunning) {
+    refresh();
+  }
+}, 30000)
 
 refresh(); // this is entry point for the program. 

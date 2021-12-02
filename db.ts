@@ -58,6 +58,29 @@ export var getVideoCodesFromDB = (desiredCount: number) => {
   });
 }
 
+export var getVideoIncompleteCodesFromDB = (desiredCount: number) => {
+  return new Promise(async (resolve, reject) => {
+    const client = new MongoClient(url);
+    try {
+      await client.connect();
+
+      const db = client.db(dbName);
+      const items = db
+        .collection(collectionName)
+        .find({ completedDownload: { $ne: true } })
+        .limit(desiredCount)
+        .sort({ priority: 1, dateQueued: 1})
+
+      resolve(await items.toArray());
+
+    } catch (error) {
+      reject(error);
+    } finally {
+      client.close();
+    }
+  });
+}
+
 export var addVideoEntryToDB = (entry: VideoDBEntry) => {
   return new Promise(async (resolve, reject) => {
     const client = new MongoClient(url);
