@@ -104,8 +104,12 @@ const startDownload = (
       let myProcess = processes.filter((process) => process.id === processUID)
 
       if (myProcess.length === 1) {
-        myProcess[0].messages.push(data.toString())
         myProcess[0].recentMessage = data;
+
+        const dataString = data.toString()
+        if (!(dataString.includes('[download]') && dataString.includes(' at '))) { // filter out the constant download progress message.
+          myProcess[0].messages.push(data.toString())
+        }
       }
       else {
         console.error("got multiple processes with the same id")
