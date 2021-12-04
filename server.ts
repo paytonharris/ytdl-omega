@@ -2,6 +2,7 @@ import express from 'express';
 import Joi from 'joi';
 import { queueUpPlaylistOrVideoForDownload } from './addEntries';
 import { getVideoIncompleteCodesFromDB } from './db';
+import { logRequest } from './logRequest';
 var app = express();
 var port = process.env.PORT || 5312;
 var router = express.Router();
@@ -16,10 +17,14 @@ const codeSchema = Joi.object({
 
 
 router.get('/', function(req, res) {
-  res.send('Welcome to YTDL-OMEGA API\nPost a playlist code or video code like { code: <code> } to /queue');   
+  logRequest(req, res);
+
+  res.send('omega');   
 });
 
 router.get('/queue', async (req, res) => {
+  logRequest(req, res);
+
   try {
     const data = await getVideoIncompleteCodesFromDB(100)
   
@@ -34,6 +39,8 @@ router.get('/queue', async (req, res) => {
 });
  
 router.post('/queue', async (req, res) => {
+  logRequest(req, res);
+
   var body
   try {
     body = codeSchema.validate(req.body);

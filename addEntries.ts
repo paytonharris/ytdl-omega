@@ -27,7 +27,7 @@ const addCodesToDB = (codes: string[], priority: number) => {
   
     addVideoEntriesToDB(entries);
 
-    console.log('adding these entries')
+    console.log('Adding to queue:')
     console.log(JSON.stringify(entries, null, 2))
   
   } catch (error) {

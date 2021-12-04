@@ -1,7 +1,7 @@
 import { MongoClient } from 'mongodb';
 
-const url = "mongodb://127.0.0.1:27017/"
-const dbName = 'omega';
+export const url = "mongodb://127.0.0.1:27017/"
+export const dbName = 'omega';
 const collectionName = 'yt';
 
 export interface VideoDBEntry {
