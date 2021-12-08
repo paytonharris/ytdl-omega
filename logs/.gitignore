@@ -1,0 +1,5 @@
+# Adding this file so that git will track /logs as a (pretty much) empty directory. This is where log files will be written by the program.
+# Ignore everything in this directory
+*
+# Except this file
+!.gitignore

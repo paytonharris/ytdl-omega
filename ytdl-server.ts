@@ -10,16 +10,9 @@ import { addVideoEntryToDB,
   getVideoIncompleteCodesFromDB,
 } from './db';
 
-// test errors with this url: https://www.youtube.com/watch\?v\=O-MViv-D0ow
-// ERROR: Did not get any data blocks
-// to fix: use: youtube-dl -f "bestvideo[ext=mp4]" https://www.youtube.com/watch\?v\=O-MViv-D0ow
-
-// other common error (403):
-// ERROR: unable to download video data: HTTP Error 403: Forbidden
-
 const uid = new ShortUniqueId({ length: 12 })
 const desiredSimultaneousDownloads = 40;
-let shouldRetryFailedVideos = false; // change this flag to a command line input? When it's in this state, it queries the db for failed downloads instead of new videos
+let shouldRetryFailedVideos = false; // When it's in this state, it queries the db for failed downloads instead of new videos
 let getCodesIsRunning = false;
 let processes: Process[] = []
 
@@ -46,6 +39,7 @@ const getCodes = async (desiredCount: number) => {
     const videos = await getVideos(desiredCount) as VideoDBRow[]
 
     if (videos.length === 0) {
+      shouldRetryFailedVideos = !shouldRetryFailedVideos; // if no new videos were found, next time try failed videos and vice versa.
       getCodesIsRunning = false;
       return;
     }
@@ -265,7 +259,7 @@ const printStatus = () => {
   }
 }
 
-// this get the videos codes and starts the downloads. It get triggered when a download finishes and when the script first starts.
+// this gets the videos codes and starts the downloads. It gets triggered when a download finishes and when the script first starts.
 const refresh = () => {
   if (processes.length < desiredSimultaneousDownloads && !getCodesIsRunning) {
     getCodes(desiredSimultaneousDownloads - processes.length);
@@ -286,4 +280,4 @@ setInterval(() => {
   }
 }, 30000)
 
-refresh(); // this is entry point for the program. 
+refresh(); // this is the entry point for the program. 
