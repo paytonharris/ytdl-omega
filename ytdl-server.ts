@@ -11,8 +11,8 @@ import { addVideoEntryToDB,
 } from './db';
 
 const uid = new ShortUniqueId({ length: 12 })
-const desiredSimultaneousDownloads = 40;
-let shouldRetryFailedVideos = false; // When it's in this state, it queries the db for failed downloads instead of new videos
+const desiredSimultaneousDownloads = 25;
+let shouldRetryFailedVideos = true; // When it's in this state, it queries the db for failed downloads instead of new videos
 let getCodesIsRunning = false;
 let processes: Process[] = []
 
@@ -275,9 +275,7 @@ setInterval(() => {
 // but if there are no more videos to download, it should keep checking the database every 30 seconds
 // in case more videos get added later.
 setInterval(() => {
-  if (processes.length === 0 && !getCodesIsRunning) {
-    refresh();
-  }
+  refresh();
 }, 30000)
 
 refresh(); // this is the entry point for the program. 

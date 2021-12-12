@@ -55,4 +55,4 @@ You POST a playlist code to the API, and it puts each of the videos from the pla
 
 Use a config file to specify download format, quality, titles, and path. There's information on how to do that in the youtube-dl readme.
 
-By default, it downloads 40 videos at once. Set your desired number of simultaneous downloads in the var `desiredSimultaneousDownloads` which is near the top of `ytdl-server.ts`. (Don't forget to run `tsc` after making changes, then run `node ytdl-server.js` again.)
+By default, it downloads 25 videos at once. Set your desired number of simultaneous downloads in the var `desiredSimultaneousDownloads` which is near the top of `ytdl-server.ts`. (Don't forget to run `tsc` after making changes, then run `node ytdl-server.js` again.)
