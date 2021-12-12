@@ -8,6 +8,7 @@ import { addVideoEntryToDB,
   VideoDBRow,
   markItemsAsBeingDownloadedInDB,
   getVideoIncompleteCodesFromDB,
+  markItemsAsBeingRetriedInDB,
 } from './db';
 
 const uid = new ShortUniqueId({ length: 12 })
@@ -35,6 +36,7 @@ const getCodes = async (desiredCount: number) => {
 
   try {
     var getVideos = shouldRetryFailedVideos ? getVideoIncompleteCodesFromDB : getVideoCodesFromDB
+    var markDownloadAsInProgress = shouldRetryFailedVideos ? markItemsAsBeingRetriedInDB : markItemsAsBeingDownloadedInDB
 
     const videos = await getVideos(desiredCount) as VideoDBRow[]
 
@@ -44,7 +46,7 @@ const getCodes = async (desiredCount: number) => {
       return;
     }
 
-    await markItemsAsBeingDownloadedInDB(videos);
+    await markDownloadAsInProgress(videos);
 
     videos.forEach((video, index) => {
       if (video._id && video.videoCode) {
@@ -243,6 +245,12 @@ const printStatus = () => {
   console.clear()
 
   console.log('OMEGA')
+
+  if (shouldRetryFailedVideos) {
+    console.log("Retrying failed downloads")
+  } else {
+    console.log("Starting new downloads")
+  }
 
   if (processes.length === 0) {
     console.log("No processes -- currently idle");

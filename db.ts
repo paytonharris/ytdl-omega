@@ -67,7 +67,7 @@ export var getVideoIncompleteCodesFromDB = (desiredCount: number) => {
       const db = client.db(dbName);
       const items = db
         .collection(collectionName)
-        .find({ completedDownload: { $ne: true } })
+        .find({ completedDownload: { $ne: true }, isRetrying: { $ne: true } })
         .limit(desiredCount)
         .sort({ priority: 1, dateQueued: 1})
 
@@ -148,6 +148,30 @@ export const markItemsAsBeingDownloadedInDB = (entries: VideoDBRow[]) => {
       entries.forEach((entry, index) => {
         db.collection(collectionName).updateOne({ _id: entry._id}, { $set: {
           isDownloading: true
+        }}).then(() => {
+          if (index+1 === entries.length) {
+            client.close();
+          }
+        })
+      })
+
+      resolve(true);
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+export const markItemsAsBeingRetriedInDB = (entries: VideoDBRow[]) => {
+  return new Promise(async (resolve, reject) => {
+    const client = new MongoClient(url);
+    try {
+      await client.connect();
+      const db = client.db(dbName);
+
+      entries.forEach((entry, index) => {
+        db.collection(collectionName).updateOne({ _id: entry._id}, { $set: {
+          isRetrying: true
         }}).then(() => {
           if (index+1 === entries.length) {
             client.close();
