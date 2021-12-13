@@ -44,7 +44,7 @@ export var getVideoCodesFromDB = (desiredCount: number) => {
       const db = client.db(dbName);
       const items = db
         .collection(collectionName)
-        .find({ completedDownload: { $ne: true }, failedDownload: { $ne: true }, isDownloading: { $ne: true } })
+        .find({ completedDownload: { $ne: true }, failedDownload: { $ne: true }, isDownloading: { $ne: true }, isRetrying: { $ne: true } })
         .limit(desiredCount)
         .sort({ priority: 1, dateQueued: 1})
 
@@ -67,7 +67,7 @@ export var getVideoIncompleteCodesFromDB = (desiredCount: number) => {
       const db = client.db(dbName);
       const items = db
         .collection(collectionName)
-        .find({ completedDownload: { $ne: true }, isRetrying: { $ne: true } })
+        .find({ completedDownload: { $ne: true }, isRetrying: { $ne: true }, isDownloading: true })
         .limit(desiredCount)
         .sort({ priority: 1, dateQueued: 1})
 
